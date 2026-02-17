@@ -6,7 +6,7 @@ date: "2025-08-20"
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
-pacman::p_load(tidyverse, lubridate, cowplot)
+pacman::p_load(tidyverse, lubridate, ggbeeswarm)
 source("chart_style.R")
 
 
@@ -111,7 +111,7 @@ ggsave("figures/countries.png", width = 15, height = 10, units = "cm", dpi = 300
 
 
 ## Classification plot
-The classification results show a fairly even distribution across the categories, with the exception of Hybrid which has the fewest.
+The classification results show a fairly even distribution across the categories, 
 
 ```{r pressure, echo=FALSE}
 
@@ -307,13 +307,7 @@ ggsave("modality_long.svg")
 
 ```
 
-```{r networked}
 
-modality <- separate_rows(network, modality, convert = TRUE) 
-
-
-write_csv(modality, "moality.csv")
-``` 
 
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
 
