@@ -1,0 +1,464 @@
+---
+title: "rseo_journalism"
+output: word_document
+date: "2025-08-20"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+pacman::p_load(tidyverse, lubridate, cowplot)
+source("chart_style.R")
+
+
+```
+
+## Load, clean, and join
+
+
+```{r read}
+
+# master <- read_csv("data_read_in/master.csv")
+full_sample <- read_csv("data_read_in/story_classifications.csv")
+
+```
+## Dates
+```{r dates}
+
+timeline <- full_sample %>%
+  mutate(year = floor_date(date, "year")) %>%  # first day of month
+  group_by(year) %>%
+  arrange(classification) %>%
+  mutate(y = row_number()) %>%
+  ungroup()
+
+
+ggplot(timeline, aes(x = date, y = y, colour = item_source)) +
+  geom_point(size = 5) +
+  scale_colour_manual(values = c(five_point[4], five_point[2]),
+                      labels = c("Snowball sampling", "Sigma awards"))+
+  rseo_style() +
+  scale_x_date(breaks = as.Date(c("2015-01-01", "2017-01-01", "2019-01-01", "2021-01-01", "2023-01-01", "2025-01-01")),
+    date_labels = "%Y") +
+  theme(panel.grid.major.y = element_blank(),
+        axis.ticks.x = element_line(),
+        axis.text.y = element_blank(),
+        legend.position = "right") +
+  guides(colour = guide_legend(reverse=T)) +
+  geom_hline(yintercept = 0)
+
+ggsave("figures/timeline.png", width = 15, height = 10, units = "cm", dpi = 300)
+
+ggplot(timeline %>% mutate(bee = "bee"), aes(x = bee, y = date, colour = item_source)) +
+  geom_vline(xintercept = 1, colour = "grey90") +
+  geom_beeswarm(cex=7, size = 5) +
+  coord_flip() +
+  scale_colour_manual(values = c(five_point[4], five_point[2]),
+                      labels = c("Snowball sampling", "Sigma awards"))+
+  rseo_style() +
+  theme(panel.grid.major.y = element_blank(),
+        axis.text.y = element_blank(),
+        legend.position = "bottom") +
+  guides(colour = guide_legend(reverse=T)) +
+  labs(title = "Sample source and time range",
+       subtitle = " ")
+
+country_count <- full_sample %>%
+  group_by(country) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count), country)
+
+# ggplot(country_count, aes(x = reorder(c), y = count)) + 
+#   geom_col(fill = five_point[2]) + 
+#   coord_flip() + 
+#   rseo_style() + 
+#   theme(panel.grid.major.y = element_blank(),
+#         legend.position = "right") +
+#   labs(title = "Stories by publisher country")
+
+
+
+ggplot(full_sample %>% group_by(country) %>%
+  summarise(y = row_number()) %>% ungroup() %>%
+    mutate(country = factor(country, levels = rev(c("United States",
+                                                "United Kingdom",
+                                                "Ukraine",
+                                                "Brazil",
+                                                "France",
+                                                "Qatar",
+                                                "Singapore",
+                                                "Australia",
+                                                "Botswana",
+                                                "Canada",
+                                                "Germany",
+                                                "Jordan",
+                                                "Switzerland",
+                                                "Uruguay")))), 
+  aes(x = y, y = country)) + 
+  geom_tile(colour = "white", fill = alt_cols_five[1]) +
+  rseo_style() +
+  coord_fixed() +
+  geom_vline(xintercept = 0, colour = "black") +
+  theme(panel.grid.major.y = element_blank(),
+        axis.text.x = element_blank())
+
+ggsave("figures/countries.png", width = 15, height = 10, units = "cm", dpi = 300)
+
+
+
+
+
+```
+
+
+## Classification plot
+The classification results show a fairly even distribution across the categories, with the exception of Hybrid which has the fewest.
+
+```{r pressure, echo=FALSE}
+
+by_cat <- full_sample %>%
+  group_by(classification) %>%
+  arrange(networked) %>%
+  mutate(y = row_number()) %>%
+  ungroup() %>%
+  mutate(classification = factor(classification, levels = c("Illustrative", "Evidentiary", "Investigative", "Hybrid", "Experimental")))
+
+
+ggplot(by_cat, aes(x = y, y = classification, fill = classification, colour = networked)) + 
+  geom_tile(aes(fill = classification), show.legend = FALSE) +
+  geom_tile(data = by_cat %>% filter(networked == "yes"),
+            aes(x = y, y = classification, colour = networked),
+            fill = NA, size = 1, colour = "black", show.legend = FALSE) +  # Outline layer
+          
+  rseo_style() +
+  coord_fixed() +
+  scale_fill_manual(values = five_point, guide = "none") +
+  scale_colour_manual(values = c("black", "white")) +
+  theme(panel.grid.major.y = element_blank(),
+        axis.text.x = element_blank()) 
+
+ggsave("figures/classification.png", width = 15, height = 10, units = "cm", dpi = 300)
+
+
+
+
+
+```
+
+
+## modality
+```{r modallity} 
+    
+
+modality <- separate_rows(full_sample, operative_use, convert = TRUE)
+
+ggplot(modality, aes(x = operative_use)) + geom_bar()
+
+ggplot(modality %>% drop_na(pub_private_both) %>%
+         mutate(pub_private_both = factor(pub_private_both, levels = c("Public", "Both", "Commercial"))), aes(x = classification, fill = pub_private_both)) +
+  geom_bar(position = "fill") +
+  rseo_style() +
+  coord_flip() +
+  scale_fill_manual(values = c(five_point[1], five_point[4], five_point[2])) +
+  scale_y_continuous(labels = scales::percent, breaks = c(0, 0.5, 1)) +
+  theme(legend.position = "right",
+        panel.grid.major.y = element_blank()) +
+  labs(title = "Data source by provider",
+       subtitle = " ")
+
+
+pub_com <- separate_rows(modality, pub_private, convert = TRUE)
+
+
+
+ggplot(pub_com %>% drop_na(pub_private) %>%
+         mutate(pub_private = factor(pub_private, levels = c("Public", "Both", "Commercial"))), aes(x = classification, fill = pub_private)) +
+  geom_bar(position = "fill") +
+  rseo_style() +
+  coord_flip() +
+  scale_fill_manual(values = c(five_point[2], five_point[5])) +
+  scale_y_continuous(labels = scales::percent, breaks = c(0, 0.5, 1)) +
+  theme(legend.position = "right",
+        panel.grid.major.y = element_blank()) +
+  labs(title = "Data source by provider",
+       subtitle = " ")
+
+
+
+modality_grid <- modality %>%
+  select(classification, operative_use) %>%
+  group_by(classification, operative_use) %>%
+  summarise(n = n(),
+            sqrt = sqrt(n())) %>%
+  mutate(sq = floor(sqrt))
+
+modality_grid <- modality %>%
+  group_by(classification, operative_use) %>%
+  arrange(derived_data_product) %>%
+  mutate(obs_id = row_number()) %>%
+  mutate(n = n(),
+         sq = ceiling(sqrt(n))) %>%
+  mutate(
+    x = ((obs_id - 1) %% sq) + 1,              # x increases across the row
+    y = (floor((obs_id - 1) / sq)) + 1         # y increases down the column
+  ) %>%
+  ungroup()
+
+ggplot(modality_grid %>%
+         mutate(der_dat = case_when(derived_data_product == "FIRMS" ~ "FIRMS",
+                                    is.na(derived_data_product) ~ NA,
+                                    TRUE ~ "Other")), aes(x = x, y = y, fill = der_dat)) +
+  geom_tile(colour = "white") +
+  facet_grid(operative_use ~ classification) +
+  scale_fill_manual(values = alt_cols_five) +
+  coord_fixed() +  # Keeps squares square
+  rseo_style() +
+  theme(panel.grid.major.y = element_blank(),
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        panel.border = element_rect(color = "black", fill = NA, size = 1),
+        axis.ticks = element_blank(),
+        axis.title =  element_blank(),
+        strip.text = element_text(size = 8, hjust = 0)) +
+  labs(title = "EO modalities by story classifications",
+       subtitle = "Multiple assignments possible")
+
+source_num <- modality %>%
+  group_by(shorter_title) %>%
+  summarise(count = n())
+
+sort <- full_sample %>%
+  left_join(source_num) %>%
+  mutate(classification = factor(classification, levels = c("Illustrative", "Evidentiary", "Investigative", "Hybrid", "Experimental"))) %>%
+  arrange(classification, count) %>%
+  mutate(this_id = row_number()) %>%
+  select(shorter_title, classification, this_id)
+
+modality_tile <- modality %>%
+  mutate(num = case_when(operative_use == "UV" ~ 1,
+                         operative_use == "VIS" ~ 2,
+                         operative_use == "PAN" ~ 3,
+                         operative_use == "MS" ~ 4,
+                         operative_use == "TIR" ~ 5,
+                         operative_use == "MW" ~ 6,
+                         TRUE ~ 7)) %>%
+  left_join(sort) 
+
+
+ggplot(modality_tile %>% mutate(classification = factor(classification, levels = c("Illustrative", "Evidentiary", "Investigative", "Hybrid", "Experimental"))), aes(x = this_id, y = num, fill = classification)) +
+  geom_tile(colour = "white") +
+  coord_fixed() +
+  scale_x_continuous(
+    breaks = 1:44,
+    labels = sort$short_title,
+  ) +
+  scale_y_continuous(
+    breaks = 1:6,  
+    labels = c("Ultraviolet", "Visible", "Panchromatic", "Multispectral", "Thermal Infratred", "Microwave"),
+    minor_breaks = seq(min(modality_tile$this_id) + 0.5, max(modality_tile$this_id) - 0.5)
+  ) +
+  scale_fill_manual(values = five_point_named) +
+  rseo_style() +
+  theme(axis.text.y = element_text(size = 10),
+        axis.text.x = element_blank(),
+        axis.title.x = element_text(),
+        axis.ticks.x = element_line(),
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_line(color = "gray", size = 0.5)
+        ) +
+  geom_hline(yintercept = 0.5) +
+  geom_hline(yintercept = 6.5) +
+  labs(x = "Stories in sample")
+
+ggsave("modality_wide.png")
+
+
+ggplot(modality_tile, aes(x = num, y = this_id, fill = classification)) +
+  geom_tile(colour = "white") +
+  coord_fixed() +
+  scale_x_continuous(
+    breaks = 1:6,  
+    labels = c("Ultraviolet", "Visible", "Panchromatic", "Multispectral", "Thermal Infrared", "Microwave"),
+    minor_breaks = seq(0.5, 6.5, by = 1)  # optional if you want minor grid lines
+  ) +
+  scale_y_reverse(
+    breaks = 1:40 ,
+    labels = sort$shorter_title
+  ) +
+  scale_fill_manual(values = five_point_named) +
+  rseo_style() +
+  theme(
+    axis.text.x = element_text(size = 8, angle = 70, hjust = 1),
+    axis.text.y = element_text(size = 6.5),
+    axis.title.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_line(color = "gray", size = 0.5),
+    panel.grid.major.y = element_blank(),
+    legend.text = element_text(size = 6.5),
+    legend.position = "bottom"
+  ) +  geom_vline(xintercept = 6.5)
+# +
+#   geom_vline(xintercept = 0.5, ymin = 1, ymax = 40) +
+#   geom_vline(xintercept = 6.5, xmin = 1, xmax = 44) 
+
+
+ggsave("modality_long.png")
+
+ggsave("modality_long.svg")
+
+```
+
+```{r networked}
+
+modality <- separate_rows(network, modality, convert = TRUE) 
+
+
+write_csv(modality, "moality.csv")
+``` 
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+##subjects 
+```{r subjects}
+
+themes <- full_sample %>%
+  select(project_title, subject_theme, subject_theme_2, classification) %>%
+  pivot_longer(!c(project_title, classification), values_to = "theme") %>%
+  drop_na(theme) %>%
+  select(project_title, theme, classification)
+  
+
+  
+themes_filled <- full_sample %>%
+  select(project_title, subject_theme, subject_theme_2) %>%
+  mutate(subject_theme_2 = ifelse(is.na(subject_theme_2), subject_theme, subject_theme_2)) %>%
+  drop_na()
+
+theme_counts <- themes_filled %>%
+  count(subject_theme, subject_theme_2) %>%
+  mutate(subject_theme = factor(subject_theme, levels = c("War and conflict",
+                                          "Human health",
+                                          "Extractive industries",
+                                          "Urbanism and infrastructure",
+                                          "Shipping and logistics",
+                                          "Climate and environment")),
+         subject_theme_2 = factor(subject_theme_2, levels = c("War and conflict",
+                                          "Human health",
+                                          "Extractive industries",
+                                          "Urbanism and infrastructure",
+                                          "Shipping and logistics",
+                                          "Climate and environment")))
+
+
+
+ggplot(theme_counts, aes(x = subject_theme, y = subject_theme_2, fill = n)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = ifelse(n > 0, n, "")), color = "black", size = 3) +
+  scale_fill_gradient(low = "grey", high = five_point[2], guide = "none") +
+  coord_fixed() +
+  rseo_style() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.margin = margin(t = 5, r = 5, b = 5, l = 0),
+    axis.text = element_text(size = 10),
+    panel.grid.major.y = element_blank()
+  ) +
+  scale_x_discrete(drop = FALSE) +  # Force all levels to show
+  scale_y_discrete(drop = FALSE) +  # Force all levels to show
+  # geom_vline(xintercept = seq(0.5, length(unique(theme_counts$subject_theme)), by = 1),
+  #          color = "grey80", size = 0.5) +
+  # geom_hline(yintercept = seq(0.5, length(unique(theme_counts$subject_theme)), by = 1),
+  #          color = "grey80", size = 0.5) +
+  geom_vline(xintercept = 0.5, colour = "black") +
+  geom_vline(xintercept = 7.5, colour = "black") +
+  geom_hline(yintercept = 7.5, colour = "black") +
+  geom_hline(yintercept = 0.5, colour = "black")
+
+ggsave("figures/story_themes.png", width = 15, height = 10, units = "cm", dpi = 300)
+
+```
+
+
+
+```{r suppliers}
+
+suppliers <- full_sample %>% select(data_supplier) %>%
+  separate_rows(data_supplier, convert = TRUE) %>%
+  group_by(data_supplier) %>%
+  summarise(count = n()) %>%
+  mutate(ownership = ifelse(data_supplier %in% c("ESA", "NASA","INPE","NOAA", "CSA", "ESA", "USGS", "ECMWF", "DMSP"), "Public", "Commercial")) %>%
+  mutate(data_supplier = ifelse(data_supplier == "Capella", "Capella Space", data_supplier))
+
+
+ggplot(suppliers %>% filter(!data_supplier %in% c("Unknown", "Space", "NPP")), aes(x = reorder(data_supplier, count), y = count, fill = ownership)) + 
+  geom_col() + 
+  coord_flip() +
+  rseo_style() +
+  geom_vline(xintercept = 0, colour = "black") +
+  scale_fill_manual(values = alt_cols_five) +
+  theme(panel.grid.major.y = element_blank(),
+        axis.text = element_text(size = 10),
+        legend.position = "right") 
+
+ggsave("figures/suppliers.png", width = 15, height = 10, units = "cm", dpi = 300)
+
+
+# to_correct <- full_sample %>%
+#   separate_rows(data_supplier, convert = TRUE) %>%
+#   select(id, project_title, classification, data_supplier, derived_data_product) %>%
+#   filter(!data_supplier %in% c("Space")) %>%
+#   mutate(owner = ifelse(data_supplier %in% c("ESA", "INPE", "CSA", "NASA", "NOAA", "ESA", "USGS", "ECMWF", "DMSP"), "Public", "Commercial"))
+# 
+# write_csv(to_correct, "to_correct_again.csv")
+corrected <- read_csv("to_correct.csv")
+
+supplier_owner <- corrected %>%
+  mutate(data_supplier = ifelse(data_supplier == "Capella", "Capella Space", data_supplier),
+         derived = ifelse(is.na(derived_data_product), "Primary data", "Secondary dataset"))
+
+# supplier_owner <- read_csv("derived_fix.csv") %>%
+#   left_join(full_sample %>% select(project_title, classification)) %>%
+#   drop_na(classification) %>%
+#   mutate(owner = ifelse(data_supplier %in% c("ESA", "NASA", "INPE", "NOAA", "ESA", "USGS", "ECMWF", "DMSP"), "Public", "Commercial")) %>%
+#   mutate(data_supplier = ifelse(data_supplier == "Capella", "Capella Space", data_supplier),
+#          derived = ifelse(is.na(derived_data_product), "Primary data", "Secondary dataset")) %>%
+#   left_join(full_sample %>% select(project_title, classification, derived_data_product))
+
+supplier_grid <- supplier_owner %>%
+  group_by(classification, owner) %>%
+  mutate(obs_id = row_number()) %>%
+  mutate(n = n(),
+         sq = ceiling(sqrt(n))) %>%
+  mutate(
+    x = ((obs_id - 1) %% sq) + 1,              # x increases across the row
+    y = (floor((obs_id - 1) / sq)) + 1         # y increases down the column
+  ) %>%
+  ungroup()
+
+supplier_grid <- supplier_grid %>%
+  mutate(classification = factor(classification,
+                                 levels = c("Illustrative", "Evidentiary", "Investigative",
+                                            "Hybrid", "Experimental")))
+ggplot(supplier_grid, aes(x = x, y = y, fill = derived)) +
+  geom_tile(colour = "white") +
+  facet_grid(owner ~ classification) +
+  scale_fill_manual(values = alt_cols_five) +
+  coord_fixed() +  # Keeps squares square
+  rseo_style() +
+  theme(panel.grid.major.y = element_blank(),
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        panel.border = element_rect(color = "black", fill = NA, size = 1),
+        axis.ticks = element_blank(),
+        axis.title =  element_blank(),
+        strip.text = element_text(size = 8, hjust = 0))
+
+ratio <- supplier_owner %>% 
+  mutate(group = case_when(classification %in% c("Illustrative", "Evidentiary") ~ "low",
+                           classification %in% c("Hybrid", "Experimental") ~ "high",
+                             TRUE ~ "Mid")) %>%
+  group_by(group, owner) %>% count()
+
+ggsave("figures/supplier_grid.png", width = 15, height = 10, units = "cm", dpi = 300)
+
+
+``` 
