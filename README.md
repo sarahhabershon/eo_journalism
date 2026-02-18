@@ -1,0 +1,1 @@
+This repository contains the dataset and chart generation code for "Earth observation data journalism: an emerging interdiscipline", an analysis presented at GIJN 2025 and submitted for publication Feb 2026
