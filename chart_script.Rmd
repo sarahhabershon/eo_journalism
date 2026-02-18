@@ -6,19 +6,25 @@ date: "2025-08-20"
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
-pacman::p_load(tidyverse, lubridate, ggbeeswarm)
+pacman::p_load(tidyverse, lubridate, ggbeeswarm, janitor)
 source("chart_style.R")
 
 
 ```
 
-## Load, clean, and join
-
+## Load data
 
 ```{r read}
 
-# master <- read_csv("data_read_in/master.csv")
-full_sample <- read_csv("data_read_in/story_classifications.csv")
+full_sample <- read_csv("data_read_in/classified_story_sample.csv")
+
+
+all_sats <- read.delim("https://www.ucs.org/sites/default/files/2024-01/UCS-Satellite-Database%205-1-2023%20%28text%29.txt", sep = "\t") %>%
+  clean_names() 
+
+wavelengths <- read_csv("data_read_in/wavelengths.csv") %>%
+  filter(!is.na(min_nm))
+
 
 ```
 ## Dates
@@ -48,33 +54,11 @@ ggplot(timeline, aes(x = date, y = y, colour = item_source)) +
 
 ggsave("figures/timeline.png", width = 15, height = 10, units = "cm", dpi = 300)
 
-ggplot(timeline %>% mutate(bee = "bee"), aes(x = bee, y = date, colour = item_source)) +
-  geom_vline(xintercept = 1, colour = "grey90") +
-  geom_beeswarm(cex=7, size = 5) +
-  coord_flip() +
-  scale_colour_manual(values = c(five_point[4], five_point[2]),
-                      labels = c("Snowball sampling", "Sigma awards"))+
-  rseo_style() +
-  theme(panel.grid.major.y = element_blank(),
-        axis.text.y = element_blank(),
-        legend.position = "bottom") +
-  guides(colour = guide_legend(reverse=T)) +
-  labs(title = "Sample source and time range",
-       subtitle = " ")
 
 country_count <- full_sample %>%
   group_by(country) %>%
   summarise(count = n()) %>%
   arrange(desc(count), country)
-
-# ggplot(country_count, aes(x = reorder(c), y = count)) + 
-#   geom_col(fill = five_point[2]) + 
-#   coord_flip() + 
-#   rseo_style() + 
-#   theme(panel.grid.major.y = element_blank(),
-#         legend.position = "right") +
-#   labs(title = "Stories by publisher country")
-
 
 
 ggplot(full_sample %>% group_by(country) %>%
@@ -151,7 +135,6 @@ ggsave("figures/classification.png", width = 15, height = 10, units = "cm", dpi 
 
 modality <- separate_rows(full_sample, operative_use, convert = TRUE)
 
-ggplot(modality, aes(x = operative_use)) + geom_bar()
 
 ggplot(modality %>% drop_na(pub_private_both) %>%
          mutate(pub_private_both = factor(pub_private_both, levels = c("Public", "Both", "Commercial"))), aes(x = classification, fill = pub_private_both)) +
@@ -202,25 +185,6 @@ modality_grid <- modality %>%
     y = (floor((obs_id - 1) / sq)) + 1         # y increases down the column
   ) %>%
   ungroup()
-
-ggplot(modality_grid %>%
-         mutate(der_dat = case_when(derived_data_product == "FIRMS" ~ "FIRMS",
-                                    is.na(derived_data_product) ~ NA,
-                                    TRUE ~ "Other")), aes(x = x, y = y, fill = der_dat)) +
-  geom_tile(colour = "white") +
-  facet_grid(operative_use ~ classification) +
-  scale_fill_manual(values = alt_cols_five) +
-  coord_fixed() +  # Keeps squares square
-  rseo_style() +
-  theme(panel.grid.major.y = element_blank(),
-        axis.text.x = element_blank(),
-        axis.text.y = element_blank(),
-        panel.border = element_rect(color = "black", fill = NA, size = 1),
-        axis.ticks = element_blank(),
-        axis.title =  element_blank(),
-        strip.text = element_text(size = 8, hjust = 0)) +
-  labs(title = "EO modalities by story classifications",
-       subtitle = "Multiple assignments possible")
 
 source_num <- modality %>%
   group_by(shorter_title) %>%
@@ -297,8 +261,6 @@ ggplot(modality_tile, aes(x = num, y = this_id, fill = classification)) +
     legend.position = "bottom"
   ) +  geom_vline(xintercept = 6.5)
 # +
-#   geom_vline(xintercept = 0.5, ymin = 1, ymax = 40) +
-#   geom_vline(xintercept = 6.5, xmin = 1, xmax = 44) 
 
 
 ggsave("modality_long.png")
@@ -372,7 +334,7 @@ ggsave("figures/story_themes.png", width = 15, height = 10, units = "cm", dpi = 
 ```
 
 
-
+##suppliers 
 ```{r suppliers}
 
 suppliers <- full_sample %>% select(data_supplier) %>%
@@ -395,27 +357,12 @@ ggplot(suppliers %>% filter(!data_supplier %in% c("Unknown", "Space", "NPP")), a
 
 ggsave("figures/suppliers.png", width = 15, height = 10, units = "cm", dpi = 300)
 
-
-# to_correct <- full_sample %>%
-#   separate_rows(data_supplier, convert = TRUE) %>%
-#   select(id, project_title, classification, data_supplier, derived_data_product) %>%
-#   filter(!data_supplier %in% c("Space")) %>%
-#   mutate(owner = ifelse(data_supplier %in% c("ESA", "INPE", "CSA", "NASA", "NOAA", "ESA", "USGS", "ECMWF", "DMSP"), "Public", "Commercial"))
-# 
-# write_csv(to_correct, "to_correct_again.csv")
 corrected <- read_csv("to_correct.csv")
 
 supplier_owner <- corrected %>%
   mutate(data_supplier = ifelse(data_supplier == "Capella", "Capella Space", data_supplier),
          derived = ifelse(is.na(derived_data_product), "Primary data", "Secondary dataset"))
 
-# supplier_owner <- read_csv("derived_fix.csv") %>%
-#   left_join(full_sample %>% select(project_title, classification)) %>%
-#   drop_na(classification) %>%
-#   mutate(owner = ifelse(data_supplier %in% c("ESA", "NASA", "INPE", "NOAA", "ESA", "USGS", "ECMWF", "DMSP"), "Public", "Commercial")) %>%
-#   mutate(data_supplier = ifelse(data_supplier == "Capella", "Capella Space", data_supplier),
-#          derived = ifelse(is.na(derived_data_product), "Primary data", "Secondary dataset")) %>%
-#   left_join(full_sample %>% select(project_title, classification, derived_data_product))
 
 supplier_grid <- supplier_owner %>%
   group_by(classification, owner) %>%
@@ -453,6 +400,187 @@ ratio <- supplier_owner %>%
   group_by(group, owner) %>% count()
 
 ggsave("figures/supplier_grid.png", width = 15, height = 10, units = "cm", dpi = 300)
+
+
+``` 
+
+##Satellite launches
+```{r launches}
+
+purposes <- c("Earth Observation",
+              "Earth Observation ",
+              "Earth Science",
+              "Earth Observation/Technology Development",
+              "Communications/Maritime Tracking",
+              "Earth Observation/Communications",  
+              "Earth Observation/Communications/Space Science",
+              "Earth Observation ",
+              "Earth Observation/Space Science",
+              "Earth Science/Earth Observation",
+              "Earth Observation/Earth Science",
+              "Surveillance",
+              "Earth/Space Observation",
+              "Earth Observation/Navigation",
+              "Meteorological"
+              )
+
+
+
+current_names <- c("name_of_satellite_alternate_names",
+                   "current_official_name_of_satellite",
+                   "country_org_of_un_registry",
+                   "country_of_operator_owner",
+                   "operator_owner",
+                   "users",
+                   "purpose",
+                   "period_minutes",
+                   "perigee_km",
+                   "apogee_km",
+                   "date_of_launch",
+                   "expected_lifetime_yrs",
+                   "comments")  
+
+
+
+clean_sats <- all_sats %>%
+  select(current_names) %>%
+  filter(purpose %in% purposes,
+         !is.na(date_of_launch) & trimws(date_of_launch) != "") %>%
+  mutate(launch = as_date(date_of_launch, format = "%m/%d/%y")) %>%
+  group_by(launch) %>%
+  arrange(users, .by_group = TRUE) %>%
+  mutate(y = row_number()) %>%
+  ungroup()
+
+
+clean_sats_user <- all_sats %>%
+  select(current_names) %>%
+  filter(purpose %in% purposes,
+         !is.na(date_of_launch) & trimws(date_of_launch) != "") %>%
+  mutate(launch = as_date(date_of_launch, format = "%m/%d/%y"),
+           user_agg = sub("/.*", "", users)) %>%
+  group_by(launch, user_agg) %>%
+  summarise(count = n()) %>%
+  select(launch, user_agg, count) %>%
+  ungroup()  %>%
+  complete(launch = unique(launch), user_agg = unique(user_agg), fill = list(count = 0)) %>%
+  drop_na()
+
+
+agg_user <- clean_sats_user %>%
+  mutate(year_month = floor_date(launch, "year")) %>%
+  group_by(year_month, user_agg) %>%
+  summarise(count = sum(count), .groups = "drop") %>%
+  complete(year_month = seq(min(year_month), max(year_month), by = "year"),
+           user_agg = unique(user_agg),
+           fill = list(count = 0))
+
+agg_user <- agg_user %>%
+  mutate(user_agg = ifelse(user_agg == "Military ", "Military", user_agg))
+
+
+ggplot(agg_user, aes(x = year_month, y = count, fill = user_agg)) + 
+  geom_col() +
+  scale_fill_manual(values = rev(seven_point))+
+  rseo_style()+
+  scale_x_date(
+    date_breaks = "1 year",          # one label per year
+    date_labels = "%Y",
+    expand = c(0, 0), 
+  ) +
+  theme(legend.position = "right",
+        legend.margin = margin (4, 0, 4, 0),
+        legend.key.size = unit(1, "char"),
+        legend.key.spacing.x = unit(0.7, "char"),
+        axis.text.x = element_text(angle = 90, vjust = 0.5)
+  )
+
+dpi = 200
+ggsave("figures/earth_observation.png", 
+       units = "px",
+       width = 2000,
+       height = 1000,
+       dpi = dpi)
+
+
+``` 
+
+
+##Spectral Bands
+```{r spectral bands}
+
+height_waves = 1
+height_bands = 0.5
+
+wavelengths <- wavelengths %>%
+  mutate(category = case_when(
+           name %in% c("Ultraviolet","Blue","Green","Red","Near infrared","Mid-infrared","Far-infrared","Thermal infrared", "Microwave") ~ "waves",
+           T ~ name
+         ))%>%
+  mutate(factor = as.integer(factor(category, levels = c("waves", unique(category[category != "waves"])))),
+         y = if_else(factor <= 2, factor * height_waves, (factor - 2) * height_bands + 2 * height_waves),
+         height = if_else(category == "waves", height_waves, height_bands),
+         color = if_else(category == "waves", name, NA),
+         label = if_else(category == "waves", NA, category),
+         labelheight = y + 0.5*height)
+
+color_order <- data %>%
+  filter(category == "waves")%>%
+  arrange((min_nm))%>%
+  pull(name)
+
+y_ticks <- data %>%
+  filter(category == "waves")%>%
+  select(min_nm, max_nm)%>%
+  gather()%>%
+  select(value)%>%
+  unique()%>%
+  mutate(label = case_when(
+    value >= 1000000000 ~ glue("{value / 1000000000} m"),
+    value >= 1000000 ~ glue("{value / 10000000} cm"),
+    T ~ glue("{value} nm")
+  ))
+
+
+ggplot(data, mapping = aes(xmin = min_nm, ymin = y, xmax = max_nm, ymax = y + height - 0.1))+
+  geom_rect(mapping = aes(fill = color), color = "black")+
+  scale_fill_manual(breaks = c(color_order), 
+                    values = c('#d4b0d9', '#0052de', '#72d65d', '#ff434e', '#d3d3d3', '#b7b7b7', '#9b9b9b', '#808080', '#646464'), 
+                    na.value = NA,
+                    guide = guide_legend(
+                      title = NULL,
+                      nrow = 1
+                    ))+
+  scale_x_log10(
+    # breaks = y_ticks$value, 
+    #             labels = y_ticks$label,
+                name  = NULL,
+                guide = guide_axis(check.overlap = TRUE))+
+  scale_y_continuous(breaks = data$labelheight %>% unique(),
+                     labels = data %>% arrange(factor)%>%pull(category)%>%unique(),
+                     expand = expansion(0,0),
+                     limits = c(-0.5, max(data %>% mutate(top = y + height) %>% pull(top)) + 0.5))+
+  geom_text(mapping = aes(x = max_nm, y = labelheight, label = label), hjust = 0, nudge_x = 0.1)+
+  geom_text_repel(data = y_ticks, mapping = aes(x = value, y = 1, label = glue(" {label}")),
+                  hjust = 0, vjust = 0.5,
+                  box.padding = 0.05,
+                  inherit.aes = F, ## important!!
+                  size = 3.5, nudge_y = -0.5, direction  = "x", angle = -90)+
+  rseo_style()+
+  theme(panel.grid = element_blank(),
+        panel.grid.major.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title.y = element_blank(),
+        # axis.ticks.x = element_line(),
+        # axis.text.x = element_text(angle= -45, hjust = 0, vjust = 0, margin = margin(5,0,0,0)),
+        legend.position = "bottom",
+        legend.key.size = unit(1, "char"))
+
+dpi = 100
+ggsave("wavelengths_repel.png", 
+       width = 1000 / dpi,
+       height = 400/dpi)
 
 
 ``` 

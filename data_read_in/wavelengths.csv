@@ -1,0 +1,14 @@
+name,abb,min_nm,max_nm
+Ultraviolet,UV,10,400
+Visible,VIS,380,750
+"Panchromatic",PAN,450,690
+Microwave,,10000000,1000000000
+Meteorological,,NA,NA
+Multispectral,MS,450,12500
+Blue,B,450,520
+Green,G,520,600
+Red,R,600,690
+Near infrared,NIR,750,900
+Mid-infrared,MIR,1550,1750
+Far-infrared,FIR,2080,2350
+Thermal infrared,TIR,10400,12500
